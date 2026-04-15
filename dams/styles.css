@@ -54,6 +54,10 @@ a {
 }
 
 .site-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
   width: min(100%, 1780px);
   margin: 0 auto;
   padding: 14px 16px 12px;
@@ -186,6 +190,81 @@ h3 {
 .field input:focus,
 .field select:focus {
   box-shadow: 0 0 0 2px rgba(143, 216, 238, 0.28);
+}
+
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.check-field input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--cyan);
+}
+
+.flood-tray {
+  display: flex;
+  flex: 0 1 520px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.flood-tray[hidden] {
+  display: none;
+}
+
+.flood-tray-label {
+  align-self: center;
+  color: var(--quiet);
+  font-size: 0.66rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.flood-chip {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) 48px;
+  align-items: center;
+  gap: 7px;
+  max-width: 170px;
+  border: 0;
+  border-radius: var(--radius);
+  background: rgba(255, 125, 149, 0.14);
+  color: var(--text);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.flood-chip strong,
+.flood-chip span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flood-chip strong {
+  font-size: 0.72rem;
+  line-height: 1.1;
+}
+
+.flood-chip span {
+  color: #ffd2da;
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.flood-chip svg {
+  width: 48px;
+  height: 18px;
+  overflow: visible;
 }
 
 .results-heading {

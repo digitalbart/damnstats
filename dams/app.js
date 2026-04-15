@@ -595,8 +595,10 @@
     const query = $('searchInput').value.trim().toLowerCase();
     const quickView = $('quickView').value;
     const sortMode = $('sortMode').value;
+    const hideNoGauge = Boolean($('hideNoGaugeInput')?.checked);
 
     const dams = state.allDams.filter((site) => {
+      if (hideNoGauge && !site.linkedGaugeId) return false;
       if (quickView === 'watch' && !isInteresting(site)) return false;
       if (quickView === 'hydro' && !isHydroSite(site)) return false;
       if (quickView === 'linked' && !site.linkedGaugeId) return false;
@@ -625,12 +627,13 @@
     };
 
     dams.sort((a, b) => {
-      if (sortMode === 'flood') return floodSortValue(a) - floodSortValue(b) || attentionScore(b) - attentionScore(a);
-      if (sortMode === 'gauge') return (a.linkedGaugeMiles ?? 999) - (b.linkedGaugeMiles ?? 999) || attentionScore(b) - attentionScore(a);
-      if (sortMode === 'danger') return attentionScore(b) - attentionScore(a) || floodSortValue(a) - floodSortValue(b);
+      const byName = String(a.name || '').localeCompare(String(b.name || ''));
+      if (sortMode === 'flood') return floodSortValue(a) - floodSortValue(b) || attentionScore(b) - attentionScore(a) || byName;
+      if (sortMode === 'gauge') return (a.linkedGaugeMiles ?? 999) - (b.linkedGaugeMiles ?? 999) || attentionScore(b) - attentionScore(a) || byName;
+      if (sortMode === 'danger') return attentionScore(b) - attentionScore(a) || floodSortValue(a) - floodSortValue(b) || byName;
       if (quickView === 'camera') return (b.cameraFeeds?.length || 0) - (a.cameraFeeds?.length || 0) || attentionScore(b) - attentionScore(a);
       if (quickView === 'hydro') return String(a.river || '').localeCompare(String(b.river || '')) || String(a.name || '').localeCompare(String(b.name || ''));
-      return String(a.name || '').localeCompare(String(b.name || ''));
+      return byName;
     });
 
     return dams;
@@ -825,6 +828,51 @@
     updateUrlState();
   }
 
+  function sparklineSvg(site) {
+    const values = (site.stageTrend || []).filter((value) => Number.isFinite(value)).slice(-12);
+    if (values.length < 2) {
+      return '<svg viewBox="0 0 48 18" aria-hidden="true"><path d="M2 9H46" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"/></svg>';
+    }
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = Math.max(0.1, max - min);
+    const points = values.map((value, index) => {
+      const x = 2 + (index / (values.length - 1)) * 44;
+      const y = 16 - ((value - min) / span) * 14;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    return `<svg viewBox="0 0 48 18" aria-hidden="true"><polyline points="${points}" fill="none" stroke="#ff9bae" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+
+  function renderFloodTray() {
+    const tray = $('floodTray');
+    if (!tray) return;
+    const over = state.allDams
+      .filter((site) => site.floodDistance !== null && site.floodDistance !== undefined && site.floodDistance <= 0)
+      .sort((a, b) => a.floodDistance - b.floodDistance)
+      .slice(0, 4);
+
+    tray.hidden = !over.length;
+    if (!over.length) {
+      tray.innerHTML = '';
+      return;
+    }
+
+    tray.innerHTML = `
+      <span class="flood-tray-label">Over flood</span>
+      ${over.map((site) => `
+        <button class="flood-chip" type="button" data-flood-dam-id="${ui.esc(site.id)}" title="${ui.esc(site.name)}">
+          <span><strong>${ui.esc(site.name)}</strong><span>${Math.abs(site.floodDistance).toFixed(1)} ft over</span></span>
+          ${sparklineSvg(site)}
+        </button>
+      `).join('')}
+    `;
+
+    tray.querySelectorAll('[data-flood-dam-id]').forEach((button) => {
+      button.addEventListener('click', () => selectDam(button.dataset.floodDamId, true, { sidebar: true }));
+    });
+  }
+
   function setViewportMode(mode) {
     state.viewportMode = mode;
     const isCameras = mode === 'cameras';
@@ -899,6 +947,7 @@
     $('damList').innerHTML = dams.map((site) => (
       ui.damCard(site, state.selectedDamId, { riskClass, riskLabel })
     )).join('');
+    renderFloodTray();
     keepSelectedCardVisible();
 
     document.querySelectorAll('.dam-card').forEach((button) => {
@@ -1145,6 +1194,7 @@
       await Promise.all(Array.from({ length: Math.min(3, targets.length) }, worker));
     } finally {
       state.sidebarGaugeHydrating = false;
+      renderFloodTray();
     }
   }
 
@@ -1184,7 +1234,7 @@
   }
 
   function attachEvents() {
-    ['searchInput', 'quickView', 'sortMode'].forEach((id) => {
+    ['searchInput', 'quickView', 'sortMode', 'hideNoGaugeInput'].forEach((id) => {
       $(id).addEventListener('input', renderDamList);
       $(id).addEventListener('change', renderDamList);
     });
@@ -1193,6 +1243,7 @@
       $('searchInput').value = '';
       $('quickView').value = 'watch';
       $('sortMode').value = 'danger';
+      $('hideNoGaugeInput').checked = false;
       state.selectedDamId = null;
       state.shouldRevealSelectedCard = true;
       refreshAll();
