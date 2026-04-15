@@ -934,6 +934,7 @@
     const previousSelectedId = state.selectedDamId;
     $('resultCount').textContent = `${dams.length} shown`;
     renderMarkers(dams);
+    renderFloodTray();
 
     if (!dams.length) {
       $('damList').innerHTML = '<p class="empty-state">No dams match the current filters.</p>';
@@ -947,7 +948,6 @@
     $('damList').innerHTML = dams.map((site) => (
       ui.damCard(site, state.selectedDamId, { riskClass, riskLabel })
     )).join('');
-    renderFloodTray();
     keepSelectedCardVisible();
 
     document.querySelectorAll('.dam-card').forEach((button) => {

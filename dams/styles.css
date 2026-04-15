@@ -1095,6 +1095,15 @@ h3 {
     padding-right: 10px;
   }
 
+  .site-header {
+    display: block;
+  }
+
+  .flood-tray {
+    justify-content: flex-start;
+    margin-top: 10px;
+  }
+
   .panel {
     padding: 12px;
   }
