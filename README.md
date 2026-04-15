@@ -1,7 +1,9 @@
 # damn stats
 
 ## Screenshots
-<img width="2927" height="2552" alt="image" src="https://github.com/user-attachments/assets/d5aeb22d-3c1c-4054-80c9-68fdeb8df08c" />
+
+# Warnings
+<img width="1614" height="877" alt="image" src="https://github.com/user-attachments/assets/ce55c628-673f-454f-8b45-6dd2b3964c0e" />
 
 ## Radar
 <img width="2927" height="2552" alt="image" src="https://github.com/user-attachments/assets/a0954c5f-4b79-4e93-920d-99367b4b0e4d" />
@@ -26,7 +28,7 @@ The working page is:
 
 ## How To Use
 
-Open `public/dams.html` in a browser.
+Open `ams.html` in a browser.
 
 The app is plain HTML, CSS, and JavaScript. It does not need a build step for the dam dashboard.
 
@@ -77,13 +79,6 @@ Known limits:
 
 For a statewide production version, the next major upgrade should load the official EGLE Dam Inventory as the base dataset and then filter/rank by hazard, condition, gauge proximity, flood context, and camera availability.
 
-## File Map
-
-- `public/dams.html`: page shell.
-- `public/dams/styles.css`: layout, night-mode UI, map/radar/camera styling.
-- `public/dams/data.js`: configured dams, cameras, links, and fallback gauge data.
-- `public/dams/components.js`: UI rendering helpers.
-- `public/dams/app.js`: map, filtering, sorting, live fetches, caching, charts, and event wiring.
 
 ## Development Notes
 
