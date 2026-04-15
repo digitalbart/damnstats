@@ -3,6 +3,7 @@
     mdot: 'https://mdotjboss.state.mi.us/MiDrive/map',
     usgsWebcams: 'https://www.usgs.gov/products/multimedia-gallery/webcams',
     usgsIv: 'https://waterservices.usgs.gov/nwis/iv/',
+    radarWms: 'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r.cgi',
     noaa: 'https://water.noaa.gov/',
     egle: 'https://gis-egle.hub.arcgis.com/datasets/egle::michigan-dam-inventory/about',
     dnr: 'https://www.michigan.gov/dnr',

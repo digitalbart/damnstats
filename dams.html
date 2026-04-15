@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Michigan Dam Watch</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="dams/styles.css" />
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="header-copy">
+      <h1>Michigan Dam Watch</h1>
+      <p>
+        Find Michigan dams, check nearby water levels, view active NWS alerts, and open verified public cameras.
+      </p>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="panel sidebar" aria-label="Dam filters and results">
+      <div class="panel-heading">
+        <div>
+          <h2>Dams</h2>
+        </div>
+        <button id="refreshBtn" class="ghost-button" type="button">Reset</button>
+      </div>
+
+      <div class="control-stack">
+        <label class="field">
+          <span>Search</span>
+          <input id="searchInput" type="search" placeholder="Dam, county, owner, river..." autocomplete="off" />
+        </label>
+
+        <label class="field">
+          <span>View</span>
+          <select id="quickView">
+            <option value="watch" selected>Watch list</option>
+            <option value="camera">Live cameras</option>
+            <option value="linked">Gauge linked</option>
+            <option value="all">All dams</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Sort</span>
+          <select id="sortMode">
+            <option value="flood">Closest to flood level</option>
+            <option value="danger" selected>Most concerning</option>
+            <option value="gauge">Nearest gauge</option>
+            <option value="name">Name</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="results-heading">
+        <span>Results</span>
+        <strong id="resultCount">0 shown</strong>
+      </div>
+
+      <div id="damList" class="dam-list"></div>
+    </aside>
+
+    <section class="workspace" aria-label="Dam map and telemetry">
+      <section class="map-panel" aria-label="Michigan dam map and cameras">
+        <div class="map-actions" aria-label="Map and camera controls">
+          <div class="segmented-control viewport-tabs" aria-label="Main viewport mode">
+            <button id="viewportMapBtn" class="is-active" type="button" data-viewport-mode="map">Map</button>
+            <button id="viewportRadarBtn" type="button" data-viewport-mode="radar">Radar</button>
+            <button id="viewportCamerasBtn" type="button" data-viewport-mode="cameras">Cameras</button>
+          </div>
+        </div>
+        <button id="jumpDetailsBtn" class="map-details-button" type="button">Selected dam</button>
+        <div id="radarNote" class="radar-note" hidden>
+          Live radar mosaic · Iowa Environmental Mesonet
+        </div>
+        <div id="map"></div>
+        <div id="cameraWallPanel" class="camera-wall-viewport" hidden>
+          <div id="cameraWallList" class="camera-wall-grid"></div>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel telemetry-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Telemetry</p>
+              <h2>Gauge level</h2>
+            </div>
+            <div id="chartSiteName" class="selected-name">No dam selected</div>
+          </div>
+
+          <div id="chartSummaryPanel" class="chart-summary-grid"></div>
+          <div class="chart-frame">
+            <canvas id="stageChart"></canvas>
+          </div>
+        </article>
+
+        <div class="side-stack">
+          <article class="panel outlook-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Forecast</p>
+                <h2>Estimate</h2>
+              </div>
+            </div>
+            <div id="outlookBody">
+              <p class="empty-state">Pick a dam to estimate trend.</p>
+            </div>
+          </article>
+
+          <article class="panel alerts-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">NWS live data</p>
+                <h2>Selected dam alerts</h2>
+                <p id="alertsUpdated" class="subtle">Waiting for a selected dam.</p>
+              </div>
+              <strong id="statAlerts" class="alert-count">--</strong>
+            </div>
+            <div id="alertsList" class="alerts-list"></div>
+          </article>
+
+        </div>
+      </section>
+    </section>
+
+    <aside id="detailsPanel" class="panel details-panel" aria-label="Selected dam details">
+      <p class="empty-state">Pick a dam from the list or map.</p>
+    </aside>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="dams/data.js"></script>
+  <script src="dams/components.js"></script>
+  <script src="dams/app.js"></script>
+</body>
+
+</html>

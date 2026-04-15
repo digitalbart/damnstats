@@ -400,10 +400,11 @@ h3 {
   position: absolute;
   z-index: 500;
   top: 12px;
-  left: 12px;
+  left: 72px;
   right: 12px;
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   pointer-events: none;
 }
@@ -424,6 +425,21 @@ h3 {
   bottom: 12px;
   background: rgba(5, 6, 7, 0.82);
   font-weight: 800;
+}
+
+.radar-note {
+  position: absolute;
+  z-index: 500;
+  right: 12px;
+  top: 58px;
+  max-width: min(320px, calc(100% - 24px));
+  border-radius: 999px;
+  background: rgba(5, 6, 7, 0.78);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 9px 11px;
+  pointer-events: none;
 }
 
 .leaflet-popup-content-wrapper,
@@ -506,12 +522,15 @@ h3 {
 .segmented-control button {
   min-height: 34px;
   padding: 7px 9px;
+  color: var(--text);
   font-size: 0.78rem;
   font-weight: 800;
 }
 
 .segmented-control button.is-active {
-  background: rgba(242, 247, 244, 0.18);
+  background: #f3f5f2;
+  color: #050607;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
 }
 
 .chart-frame {
@@ -736,6 +755,74 @@ h3 {
 
 .outlook-fall {
   border-left-color: var(--cyan);
+}
+
+.radar-preview {
+  display: grid;
+  gap: 9px;
+}
+
+.radar-preview-copy span {
+  display: block;
+  color: var(--quiet);
+  font-size: 0.66rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.radar-preview-copy strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.radar-preview-map {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(143, 216, 238, 0.08), transparent),
+    rgba(255, 255, 255, 0.045);
+}
+
+.radar-preview-map img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.78;
+  mix-blend-mode: screen;
+}
+
+.radar-target {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+}
+
+.radar-target i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--rose);
+  box-shadow: 0 0 0 5px rgba(255, 125, 149, 0.22), 0 0 24px rgba(255, 125, 149, 0.75);
+}
+
+.radar-target b {
+  max-width: 190px;
+  border-radius: 999px;
+  background: rgba(5, 6, 7, 0.78);
+  color: var(--text);
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 7px 9px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .copy-block {

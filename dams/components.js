@@ -253,6 +253,47 @@
     `;
   }
 
+  function radarPreview(site, links) {
+    if (!site?.lat || !site?.lon || !links?.radarWms) return '';
+    const latSpan = 0.55;
+    const lonSpan = 0.78;
+    const bbox = [
+      (site.lon - lonSpan).toFixed(4),
+      (site.lat - latSpan).toFixed(4),
+      (site.lon + lonSpan).toFixed(4),
+      (site.lat + latSpan).toFixed(4),
+    ].join(',');
+    const params = new URLSearchParams({
+      service: 'WMS',
+      version: '1.1.1',
+      request: 'GetMap',
+      layers: 'nexrad-n0r',
+      styles: '',
+      format: 'image/png',
+      transparent: 'true',
+      srs: 'EPSG:4326',
+      bbox,
+      width: '1400',
+      height: '900',
+    });
+
+    return `
+      <div class="radar-preview">
+        <div class="radar-preview-copy">
+          <span>Radar</span>
+          <strong>Near ${esc(site.name)}</strong>
+        </div>
+        <div class="radar-preview-map">
+          <img src="${esc(`${links.radarWms}?${params.toString()}`)}" alt="Radar near ${esc(site.name)}" loading="lazy" />
+          <div class="radar-target" aria-hidden="true">
+            <i></i>
+            <b>${esc(site.name)}</b>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function detailsPanel(site, helpers, links, options = {}) {
     const feeds = site.cameraFeeds || [];
     const feed = feeds[0] || null;
@@ -278,6 +319,8 @@
       ${freshnessPanel(options.freshness)}
 
       ${selectedCameraPreview(site, links, options.showCameraEmbed !== false)}
+
+      ${radarPreview(site, links)}
 
       <div class="fact-grid">
         <div class="fact-row"><span>Gauge</span><strong>${site.linkedGaugeName ? `${esc(site.linkedGaugeName)}${site.linkedGaugeMiles !== null && site.linkedGaugeMiles !== undefined ? ` · ${fmt(site.linkedGaugeMiles)} mi` : ''}` : 'None nearby'}</strong></div>

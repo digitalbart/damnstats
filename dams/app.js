@@ -8,6 +8,7 @@
   const state = {
     map: null,
     markersLayer: null,
+    radarLayer: null,
     stageChart: null,
     allDams: [],
     activeAlerts: [],
@@ -93,7 +94,7 @@
     const dam = params.get('dam');
     const view = params.get('view');
 
-    if (['map', 'cameras'].includes(view)) state.viewportMode = view;
+    if (['map', 'radar', 'cameras'].includes(view)) state.viewportMode = view;
     if (dam) state.selectedDamId = dam;
   }
 
@@ -436,6 +437,13 @@
       maxZoom: 18,
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(state.map);
+    state.radarLayer = L.tileLayer.wms(data.links.radarWms, {
+      layers: 'nexrad-n0r',
+      format: 'image/png',
+      transparent: true,
+      opacity: 0.62,
+      attribution: 'Radar &copy; Iowa Environmental Mesonet',
+    });
     state.markersLayer = L.layerGroup().addTo(state.map);
   }
 
@@ -566,13 +574,22 @@
   function setViewportMode(mode) {
     state.viewportMode = mode;
     const isCameras = mode === 'cameras';
+    const isRadar = mode === 'radar';
     $('map').hidden = isCameras;
     $('cameraWallPanel').hidden = !isCameras;
+    $('radarNote').hidden = !isRadar;
     document.querySelectorAll('[data-viewport-mode]').forEach((button) => {
       button.classList.toggle('is-active', button.dataset.viewportMode === mode);
     });
-    if (isCameras) renderCameraWall();
-    else setTimeout(() => state.map.invalidateSize(), 50);
+    if (state.radarLayer) {
+      if (isRadar && !state.map.hasLayer(state.radarLayer)) state.radarLayer.addTo(state.map);
+      if (!isRadar && state.map.hasLayer(state.radarLayer)) state.map.removeLayer(state.radarLayer);
+    }
+    if (isCameras) {
+      renderCameraWall();
+    } else {
+      setTimeout(() => state.map.invalidateSize(), 50);
+    }
     const selected = state.allDams.find((dam) => dam.id === state.selectedDamId);
     if (selected) renderDetails(selected);
     updateUrlState();
