@@ -503,7 +503,23 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: '#eef8f1' } } },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#eef8f1' } },
+          tooltip: {
+            callbacks: {
+              afterBody: (items) => {
+                const floodPoint = items.find((item) => item.dataset.label === 'Estimated flood level');
+                const observedPoint = items.find((item) => item.dataset.label === 'Observed stage');
+                if (!floodPoint || !observedPoint) return '';
+                const diff = Number(floodPoint.raw) - Number(observedPoint.raw);
+                if (!Number.isFinite(diff)) return '';
+                if (diff <= 0) return `${Math.abs(diff).toFixed(1)} ft over estimated flood level`;
+                return `${diff.toFixed(1)} ft below estimated flood level`;
+              },
+            },
+          },
+        },
         scales: {
           x: { ticks: { color: '#a5b7ad' }, grid: { color: 'rgba(238, 248, 241, 0.08)' } },
           y: {
@@ -537,6 +553,9 @@
     chart.data.labels = site.stageLabels;
     chart.data.datasets[0].data = site.stageTrend;
     chart.data.datasets[1].data = site.floodStage ? site.stageTrend.map(() => site.floodStage) : [];
+    chart.data.datasets[1].label = site.floodDistance !== null && site.floodDistance !== undefined
+      ? `Estimated flood level (${site.floodDistance <= 0 ? `${Math.abs(site.floodDistance).toFixed(1)} ft over` : `${site.floodDistance.toFixed(1)} ft below`})`
+      : 'Estimated flood level';
     chart.options.scales.y.suggestedMin = 0;
     chart.options.scales.y.suggestedMax = Math.ceil(Math.max(maxValue, site.floodStage || 0) + 2);
     chart.update();

@@ -44,10 +44,6 @@
         <span>Flood level</span>
         <strong>${site.floodStage ? `${fmt(site.floodStage)} ft` : '--'}</strong>
       </div>
-      <div class="mini-metric">
-        <span>Difference</span>
-        <strong class="${floodMarginTone(site)}">${floodMargin(site)}</strong>
-      </div>
     `;
   }
 
@@ -327,7 +323,6 @@
         <div class="fact-row"><span>Current</span><strong>${fmt(site.currentStage)} ft</strong></div>
         <div class="fact-row"><span>Forecast</span><strong>${fmt(site.forecastStage)} ft</strong></div>
         <div class="fact-row"><span>Flood level</span><strong>${site.floodStage ? `${fmt(site.floodStage)} ft` : '--'}</strong></div>
-        <div class="fact-row"><span>Difference</span><strong class="${floodMarginTone(site)}">${floodMargin(site)}</strong></div>
       </div>
 
       <div class="tab-row">${linksHtml}</div>
