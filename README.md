@@ -28,7 +28,7 @@ The working page is:
 
 ## How To Use
 
-Open `ams.html` in a browser.
+Open `dams.html` in a browser.
 
 The app is plain HTML, CSS, and JavaScript. It does not need a build step for the dam dashboard.
 
