@@ -10,6 +10,7 @@
   }
 
   function fmt(value, digits = 1) {
+    if (value === null || value === undefined || value === '') return '--';
     const number = Number(value);
     if (!Number.isFinite(number) || Math.abs(number) > 99999) return '--';
     return number.toFixed(digits);
@@ -69,7 +70,11 @@
   function damCard(site, selectedId, helpers) {
     const selected = site.id === selectedId ? ' is-selected' : '';
     const camera = site.cameraFeeds?.length ? `<span class="camera-pill">${site.cameraFeeds.length} cam${site.cameraFeeds.length > 1 ? 's' : ''}</span>` : '';
-    const gauge = site.linkedGaugeName ? `Gauge ${fmt(site.linkedGaugeMiles)} mi` : 'No close gauge';
+    const hasLocation = site.lat !== null && site.lat !== undefined && site.lon !== null && site.lon !== undefined;
+    const gauge = site.linkedGaugeName ? `Gauge ${fmt(site.linkedGaugeMiles)} mi` : (hasLocation ? 'No close gauge' : 'Location pending');
+    const observed = site.linkedGaugeName && site.currentStage !== null && site.currentStage !== undefined
+      ? `Observed ${fmt(site.currentStage)} ft`
+      : '';
     const flood = site.floodStage ? `Flood ${fmt(site.floodStage)} ft` : 'No flood level';
     const margin = site.floodDistance !== null && site.floodDistance !== undefined
       ? `<span class="${floodMarginTone(site)}">${floodMargin(site)}</span>`
@@ -90,6 +95,7 @@
         </div>
         <div class="dam-card-line">
           <span>${esc(gauge)}</span>
+          ${observed ? `<span>${esc(observed)}</span>` : ''}
           <span>${esc(flood)}</span>
           ${margin}
           ${camera}
@@ -128,6 +134,11 @@
     if (!site) return '';
     const difference = floodMargin(site);
     const differenceTone = floodMarginTone(site);
+    const floodBadges = [
+      `<span class="info-badge">${esc(site.name)}</span>`,
+      site.floodStage ? `<span class="info-badge">Flood ${fmt(site.floodStage)} ft</span>` : '',
+      site.floodDistance !== null && site.floodDistance !== undefined ? `<span class="info-badge ${differenceTone}">${difference}</span>` : '',
+    ].filter(Boolean).join('');
 
     return `
       <article class="camera-wall-card">
@@ -143,9 +154,7 @@
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowfullscreen></iframe>
         <div class="camera-wall-meta">
-          <span class="info-badge">${esc(site.name)}</span>
-          <span class="info-badge">Flood ${site.floodStage ? `${fmt(site.floodStage)} ft` : '--'}</span>
-          <span class="info-badge ${differenceTone}">${difference}</span>
+          ${floodBadges}
         </div>
         <p class="small-copy">${esc(feed.view || feed.note)}</p>
         <div class="tab-row">
