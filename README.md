@@ -6,7 +6,8 @@
 <img width="1614" height="877" alt="image" src="https://github.com/user-attachments/assets/ce55c628-673f-454f-8b45-6dd2b3964c0e" />
 
 ## Radar
-<img width="2927" height="2552" alt="image" src="https://github.com/user-attachments/assets/a0954c5f-4b79-4e93-920d-99367b4b0e4d" />
+<img width="1616" height="864" alt="image" src="https://github.com/user-attachments/assets/f5765d42-f194-4ce0-8be7-4d299773eea1" />
+
 
 # Michigan Dam Watch
 
