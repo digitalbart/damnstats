@@ -1,5 +1,6 @@
 # damn stats
 
+## Screenshots
 <img width="2927" height="2552" alt="image" src="https://github.com/user-attachments/assets/d5aeb22d-3c1c-4054-80c9-68fdeb8df08c" />
 
 ## Radar
@@ -11,7 +12,7 @@ Michigan Dam Watch is a single-page monitoring dashboard for comparing Michigan 
 
 The working page is:
 
-`public/dams.html`
+`dams.html`
 
 ## What It Does
 
@@ -22,20 +23,6 @@ The working page is:
 - Adds a live radar mode over the main map.
 - Adds a small local radar preview in the selected dam panel.
 - Fetches selected-dam NWS alerts, USGS gauge stage, and NWS weather forecast data with local one-hour caching.
-
-## Screenshots
-
-Add current screenshots here when updating the page:
-
-- `docs/screenshots/dam-watch-map.png`
-- `docs/screenshots/dam-watch-radar.png`
-- `docs/screenshots/dam-watch-camera.png`
-
-Suggested captures:
-
-- Map mode with the selected dam panel open.
-- Radar mode during visible precipitation.
-- Camera mode or a dam with a live camera feed.
 
 ## How To Use
 
