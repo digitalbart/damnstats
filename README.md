@@ -16,7 +16,7 @@ This is for demonstration and situational awareness only. It is not an official 
 
 The working page is:
 
-`public/dams.html`
+`dams.html`
 
 ## What It Does
 
@@ -31,7 +31,7 @@ The working page is:
 
 ## How To Use
 
-Open `public/dams.html` in a browser.
+Open `dams.html` in a browser.
 
 The app is plain HTML, CSS, and JavaScript. It does not need a build step for the dam dashboard.
 
@@ -94,11 +94,11 @@ For a statewide production version, the next major upgrade should load the offic
 
 ## File Map
 
-- `public/dams.html`: page shell.
-- `public/dams/styles.css`: layout, dark UI, map/radar/camera styling.
-- `public/dams/data.js`: configured dams, cameras, source links, and fallback gauge data.
-- `public/dams/components.js`: UI rendering helpers.
-- `public/dams/app.js`: map, filtering, sorting, live fetches, caching, charts, and event wiring.
+- `dams.html`: page shell.
+- `dams/styles.css`: layout, dark UI, map/radar/camera styling.
+- `dams/data.js`: configured dams, cameras, source links, and fallback gauge data.
+- `dams/components.js`: UI rendering helpers.
+- `dams/app.js`: map, filtering, sorting, live fetches, caching, charts, and event wiring.
 
 ## Development Notes
 
@@ -107,7 +107,7 @@ No compile step is required for the dam dashboard.
 For quick syntax checks:
 
 ```bash
-node --check public/dams/data.js
-node --check public/dams/components.js
-node --check public/dams/app.js
+node --check dams/data.js
+node --check dams/components.js
+node --check dams/app.js
 
