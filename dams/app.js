@@ -4,12 +4,13 @@
   const MICHIGAN_CENTER = data.michiganCenter;
   const CACHE_TTL_MS = 60 * 60 * 1000;
   const INVENTORY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-  const CACHE_PREFIX = 'dam-watch-v2';
+  const CACHE_PREFIX = 'dam-watch-v3';
 
   const state = {
     map: null,
     markersLayer: null,
     selectedLabelLayer: null,
+    alertLayer: null,
     radarLayer: null,
     stageChart: null,
     allDams: [],
@@ -430,6 +431,7 @@
         areaDesc: props.areaDesc || '',
         sent: props.sent || props.effective || null,
         web: props['@id'] || feature.id || props.id || null,
+        geometry: feature.geometry || props.geometry || null,
       };
     });
   }
@@ -645,6 +647,8 @@
     state.map.getPane('hydroPane').style.zIndex = 250;
     state.map.createPane('radarPane');
     state.map.getPane('radarPane').style.zIndex = 450;
+    state.map.createPane('alertPane');
+    state.map.getPane('alertPane').style.zIndex = 500;
     const openStreetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
       attribution: '&copy; OpenStreetMap contributors',
@@ -685,6 +689,55 @@
     }).addTo(state.map);
     state.markersLayer = L.layerGroup().addTo(state.map);
     state.selectedLabelLayer = L.layerGroup().addTo(state.map);
+    state.alertLayer = L.layerGroup().addTo(state.map);
+  }
+
+  function alertStyle(alert) {
+    const severe = /extreme|severe/i.test(alert.severity || '');
+    return {
+      pane: 'alertPane',
+      color: severe ? '#ff7d95' : '#ffd166',
+      weight: severe ? 2 : 1.5,
+      opacity: 0.95,
+      fillColor: severe ? '#ff7d95' : '#ffd166',
+      fillOpacity: severe ? 0.16 : 0.12,
+    };
+  }
+
+  function alertPopup(alert) {
+    const headline = alert.headline || alert.event || 'Active NWS alert';
+    return `
+      <strong>${ui.esc(alert.event || 'NWS alert')}</strong><br>
+      <span>${ui.esc(alert.severity || 'Unknown')}</span><br>
+      ${ui.esc(headline).slice(0, 180)}${headline.length > 180 ? '...' : ''}
+    `;
+  }
+
+  function renderAlertMapOverlays(alerts, site) {
+    if (!state.alertLayer) return;
+    state.alertLayer.clearLayers();
+    if (!site || !hasCoords(site) || !alerts?.length) return;
+
+    const shapedAlerts = alerts.filter((alert) => alert.geometry);
+    shapedAlerts.forEach((alert) => {
+      const layer = L.geoJSON(alert.geometry, {
+        pane: 'alertPane',
+        style: alertStyle(alert),
+      }).bindPopup(alertPopup(alert));
+      layer.addTo(state.alertLayer);
+    });
+
+    if (!shapedAlerts.length) {
+      L.circle([site.lat, site.lon], {
+        pane: 'alertPane',
+        radius: 16000,
+        color: '#ffd166',
+        weight: 1.5,
+        opacity: 0.9,
+        fillColor: '#ffd166',
+        fillOpacity: 0.1,
+      }).bindPopup(alertPopup(alerts[0])).addTo(state.alertLayer);
+    }
   }
 
   function renderMarkers(sites) {
@@ -816,6 +869,7 @@
     $('alertsList').innerHTML = ui.alertsList(state.activeAlerts);
     if (meta.fetchedAt) state.alertFetchedAt = meta.fetchedAt;
     $('alertsUpdated').textContent = meta.message || `NWS point alerts. Last fetched ${cacheAgeLabel(meta.fetchedAt)}.`;
+    renderAlertMapOverlays(state.activeAlerts, state.allDams.find((dam) => dam.id === state.selectedDamId));
   }
 
   function renderOutlook(site) {
