@@ -71,7 +71,8 @@
     const selected = site.id === selectedId ? ' is-selected' : '';
     const camera = site.cameraFeeds?.length ? `<span class="camera-pill">${site.cameraFeeds.length} cam${site.cameraFeeds.length > 1 ? 's' : ''}</span>` : '';
     const hasLocation = site.lat !== null && site.lat !== undefined && site.lon !== null && site.lon !== undefined;
-    const gauge = site.linkedGaugeName ? `Gauge ${fmt(site.linkedGaugeMiles)} mi` : (hasLocation ? 'No close gauge' : 'Location pending');
+    const gaugeLabel = site.gaugeRelation === 'river-context' ? 'River gauge' : 'Gauge';
+    const gauge = site.linkedGaugeName ? `${gaugeLabel} ${fmt(site.linkedGaugeMiles)} mi` : (hasLocation ? 'No gauge context' : 'Location pending');
     const observed = site.linkedGaugeName && site.currentStage !== null && site.currentStage !== undefined
       ? `Observed ${fmt(site.currentStage)} ft`
       : '';
@@ -328,7 +329,7 @@
       ${radarPreview(site, links)}
 
       <div class="fact-grid">
-        <div class="fact-row"><span>Gauge</span><strong>${site.linkedGaugeName ? `${esc(site.linkedGaugeName)}${site.linkedGaugeMiles !== null && site.linkedGaugeMiles !== undefined ? ` · ${fmt(site.linkedGaugeMiles)} mi` : ''}` : 'None nearby'}</strong></div>
+        <div class="fact-row"><span>${site.gaugeRelation === 'river-context' ? 'River gauge' : 'Gauge'}</span><strong>${site.linkedGaugeName ? `${esc(site.linkedGaugeName)}${site.linkedGaugeMiles !== null && site.linkedGaugeMiles !== undefined ? ` · ${fmt(site.linkedGaugeMiles)} mi` : ''}` : 'None linked'}</strong></div>
         <div class="fact-row"><span>Current</span><strong>${fmt(site.currentStage)} ft</strong></div>
         <div class="fact-row"><span>Forecast</span><strong>${fmt(site.forecastStage)} ft</strong></div>
         <div class="fact-row"><span>Flood level</span><strong>${site.floodStage ? `${fmt(site.floodStage)} ft` : '--'}</strong></div>

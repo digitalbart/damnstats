@@ -122,6 +122,21 @@
     window.history.replaceState({}, '', nextUrl);
   }
 
+  function riverKey(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/\bst[.]?\b/g, 'saint')
+      .replace(/\b(river|creek|branch|shoreline)\b/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  function isSameRiver(dam, gauge) {
+    const damRiver = riverKey(dam.river);
+    const gaugeName = riverKey(gauge.name);
+    return Boolean(damRiver && gaugeName && gaugeName.includes(damRiver));
+  }
+
   function haversineMiles(lat1, lon1, lat2, lon2) {
     const toRad = (value) => value * Math.PI / 180;
     const radius = 3958.8;
@@ -156,6 +171,7 @@
     if (site.linkedGaugeId) {
       if (site.gaugeConfidence === 'high') score += 4;
       else if (site.gaugeConfidence === 'medium') score += 2;
+      else if (site.gaugeConfidence === 'context') score += 1;
       else score += 1;
     }
 
@@ -363,6 +379,7 @@
         linkedGaugeId: null,
         linkedGaugeName: null,
         linkedGaugeMiles: null,
+        gaugeRelation: 'none',
         gaugeConfidence: 'none',
         countyAlertCount: 0,
         cameraFeed,
@@ -545,6 +562,8 @@
     return dams.map((dam) => {
       let nearest = null;
       let bestDist = Infinity;
+      let sameRiver = null;
+      let sameRiverDist = Infinity;
 
       if (hasCoords(dam)) {
         gauges.forEach((gauge) => {
@@ -553,41 +572,50 @@
             bestDist = miles;
             nearest = gauge;
           }
+          if (isSameRiver(dam, gauge) && miles < sameRiverDist) {
+            sameRiverDist = miles;
+            sameRiver = gauge;
+          }
         });
       }
 
       const countyName = String(dam.county || '').toLowerCase();
       const countyAlertCount = alerts.filter((alert) => String(alert.areaDesc || '').toLowerCase().includes(countyName)).length;
 
-      if (!nearest || bestDist > 6) {
+      const linkedGauge = nearest && bestDist <= 6 ? nearest : sameRiver;
+      const linkedDistance = nearest && bestDist <= 6 ? bestDist : sameRiverDist;
+      const gaugeRelation = nearest && bestDist <= 6 ? 'nearby' : 'river-context';
+
+      if (!linkedGauge || linkedDistance > 35) {
         return { ...dam, countyAlertCount, floodStage: null, floodPercent: null, floodDistance: null };
       }
 
-      const currentStage = safeNumber(nearest.currentStage);
-      const forecastStage = safeNumber(nearest.forecastStage);
-      const stats = floodStats(nearest.floodStage, forecastStage);
+      const currentStage = safeNumber(linkedGauge.currentStage);
+      const forecastStage = safeNumber(linkedGauge.forecastStage);
+      const stats = floodStats(linkedGauge.floodStage, forecastStage);
 
       return {
         ...dam,
-        linkedGaugeId: nearest.id,
-        linkedGaugeUsgsId: nearest.usgsId || null,
-        linkedGaugeNwpsLid: nearest.nwpsLid || null,
-        linkedGaugeName: nearest.name,
-        linkedGaugeMiles: Number(bestDist.toFixed(1)),
-        gaugeConfidence: bestDist <= 2 ? 'high' : bestDist <= 4 ? 'medium' : 'low',
+        linkedGaugeId: linkedGauge.id,
+        linkedGaugeUsgsId: linkedGauge.usgsId || null,
+        linkedGaugeNwpsLid: linkedGauge.nwpsLid || null,
+        linkedGaugeName: linkedGauge.name,
+        linkedGaugeMiles: Number(linkedDistance.toFixed(1)),
+        gaugeRelation,
+        gaugeConfidence: linkedDistance <= 2 ? 'high' : linkedDistance <= 6 ? 'medium' : 'context',
         currentStage,
         forecastStage,
         floodStage: stats.floodStage,
         floodPercent: stats.floodPercent,
         floodDistance: stats.floodDistance,
-        stageTrend: nearest.stageTrend || [],
-        stageLabels: nearest.stageLabels || [],
-        observedUpdated: nearest.observedUpdated || null,
+        stageTrend: linkedGauge.stageTrend || [],
+        stageLabels: linkedGauge.stageLabels || [],
+        observedUpdated: linkedGauge.observedUpdated || null,
         countyAlertCount,
         sourceLinks: {
           ...dam.sourceLinks,
-          usgs: nearest.sourceLinks?.usgs || null,
-          noaaGauge: nearest.sourceLinks?.usgs || data.links.noaa,
+          usgs: linkedGauge.sourceLinks?.usgs || null,
+          noaaGauge: linkedGauge.sourceLinks?.usgs || data.links.noaa,
         },
       };
     });
@@ -760,7 +788,7 @@
         <div>
           <div style="font-weight:800; margin-bottom:4px;">${ui.esc(site.name)}</div>
           <div>${ui.esc(site.county || 'Unknown county')} · ${ui.esc(site.river || 'Dam')}</div>
-          <div>${site.linkedGaugeName ? `Nearest gauge: <strong>${ui.esc(site.linkedGaugeName)}</strong> (${ui.fmt(site.linkedGaugeMiles)} mi)` : 'No close live gauge linked'}</div>
+          <div>${site.linkedGaugeName ? `${site.gaugeRelation === 'river-context' ? 'River context gauge' : 'Nearest gauge'}: <strong>${ui.esc(site.linkedGaugeName)}</strong> (${ui.fmt(site.linkedGaugeMiles)} mi)` : 'No live gauge linked'}</div>
           <div>Attention: <strong>${ui.esc(riskLabel(site))}</strong></div>
           ${site.cameraFeeds?.length ? `<div>Camera: <strong>${ui.esc(site.cameraFeeds[0].label)}</strong></div>` : ''}
         </div>
@@ -870,6 +898,7 @@
     if (meta.fetchedAt) state.alertFetchedAt = meta.fetchedAt;
     $('alertsUpdated').textContent = meta.message || `NWS point alerts. Last fetched ${cacheAgeLabel(meta.fetchedAt)}.`;
     renderAlertMapOverlays(state.activeAlerts, state.allDams.find((dam) => dam.id === state.selectedDamId));
+    renderAlertTray();
   }
 
   function renderOutlook(site) {
@@ -924,6 +953,48 @@
 
     tray.querySelectorAll('[data-flood-dam-id]').forEach((button) => {
       button.addEventListener('click', () => selectDam(button.dataset.floodDamId, true, { sidebar: true }));
+    });
+  }
+
+  function renderAlertTray() {
+    const tray = $('alertTray');
+    if (!tray) return;
+
+    const cachedAlerts = state.allDams.flatMap((site) => {
+      const cached = readCache(cacheKey('alerts', site));
+      const items = cached?.items || [];
+      if (!items.length) return [];
+      const alert = items.find((item) => /extreme|severe/i.test(item.severity || '')) || items[0];
+      return [{
+        site,
+        alert,
+        count: items.length,
+        fetchedAt: cached.fetchedAt || 0,
+        severe: /extreme|severe/i.test(alert.severity || ''),
+      }];
+    }).sort((a, b) => (
+      Number(b.severe) - Number(a.severe)
+      || b.count - a.count
+      || b.fetchedAt - a.fetchedAt
+    )).slice(0, 2);
+
+    tray.hidden = !cachedAlerts.length;
+    if (!cachedAlerts.length) {
+      tray.innerHTML = '';
+      return;
+    }
+
+    tray.innerHTML = `
+      <span class="flood-tray-label">Cached NWS</span>
+      ${cachedAlerts.map(({ site, alert, count, severe }) => `
+        <button class="flood-chip alert-chip${severe ? ' is-severe' : ''}" type="button" data-alert-dam-id="${ui.esc(site.id)}" title="${ui.esc(alert.headline || alert.event || site.name)}">
+          <span><strong>${ui.esc(site.name)}</strong><span>${ui.esc(alert.event || 'Alert')}${count > 1 ? ` +${count - 1}` : ''}</span></span>
+        </button>
+      `).join('')}
+    `;
+
+    tray.querySelectorAll('[data-alert-dam-id]').forEach((button) => {
+      button.addEventListener('click', () => selectDam(button.dataset.alertDamId, true, { sidebar: true }));
     });
   }
 
@@ -989,6 +1060,7 @@
     $('resultCount').textContent = `${dams.length} shown`;
     renderMarkers(dams);
     renderFloodTray();
+    renderAlertTray();
 
     if (!dams.length) {
       $('damList').innerHTML = '<p class="empty-state">No dams match the current filters.</p>';

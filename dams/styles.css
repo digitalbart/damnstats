@@ -207,13 +207,20 @@ h3 {
   accent-color: var(--cyan);
 }
 
-.flood-tray {
+.header-trays {
   display: flex;
   flex: 0 1 520px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 6px;
+  min-width: 0;
+  max-width: 520px;
+  overflow: hidden;
   padding-top: 4px;
+}
+
+.flood-tray {
+  display: contents;
 }
 
 .flood-tray[hidden] {
@@ -233,12 +240,13 @@ h3 {
   grid-template-columns: minmax(72px, 1fr) 48px;
   align-items: center;
   gap: 7px;
-  max-width: 170px;
+  width: 118px;
+  max-width: 118px;
   border: 0;
   border-radius: var(--radius);
   background: rgba(255, 125, 149, 0.14);
   color: var(--text);
-  padding: 6px 8px;
+  padding: 5px 7px;
   text-align: left;
 }
 
@@ -251,20 +259,37 @@ h3 {
 }
 
 .flood-chip strong {
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   line-height: 1.1;
 }
 
 .flood-chip span {
   color: #ffd2da;
-  font-size: 0.66rem;
+  font-size: 0.6rem;
   font-weight: 800;
 }
 
 .flood-chip svg {
-  width: 48px;
-  height: 18px;
+  width: 38px;
+  height: 16px;
   overflow: visible;
+}
+
+.alert-chip {
+  grid-template-columns: minmax(0, 1fr);
+  background: rgba(255, 209, 102, 0.13);
+}
+
+.alert-chip span {
+  color: #ffe8a6;
+}
+
+.alert-chip.is-severe {
+  background: rgba(255, 125, 149, 0.16);
+}
+
+.alert-chip.is-severe span {
+  color: #ffd2da;
 }
 
 .results-heading {
@@ -1099,7 +1124,7 @@ h3 {
     display: block;
   }
 
-  .flood-tray {
+  .header-trays {
     justify-content: flex-start;
     margin-top: 10px;
   }
