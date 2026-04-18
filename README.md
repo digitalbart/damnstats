@@ -3,7 +3,8 @@
 ## Screenshots
 
 # Warnings
-<img width="1614" height="877" alt="image" src="https://github.com/user-attachments/assets/ce55c628-673f-454f-8b45-6dd2b3964c0e" />
+<img width="1871" height="1045" alt="image" src="https://github.com/user-attachments/assets/88f64bd7-fe8f-435d-8634-d2df48877218" />
+
 
 ## Radar
 <img width="1670" height="881" alt="image" src="https://github.com/user-attachments/assets/f5d462af-ee33-44f2-ac0c-ec29819465db" />
