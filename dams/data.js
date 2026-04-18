@@ -3,7 +3,11 @@
     mdot: 'https://mdotjboss.state.mi.us/MiDrive/map',
     usgsWebcams: 'https://www.usgs.gov/products/multimedia-gallery/webcams',
     usgsIv: 'https://waterservices.usgs.gov/nwis/iv/',
+    usgsOgcLatest: 'https://api.waterdata.usgs.gov/ogcapi/v0/collections/latest-continuous/items',
+    nimsApi: 'https://api.waterdata.usgs.gov/nims/v0',
     nwpsApi: 'https://api.water.noaa.gov/nwps/v1',
+    rtfiApi: 'https://api.waterdata.usgs.gov/rtfi-api',
+    rtfiFloodingGeojson: 'https://api.waterdata.usgs.gov/rtfi-api/referencepoints/flooding/geojson',
     usgsTopoTiles: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
     usgsImageryTiles: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
     radarWms: 'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r.cgi',
@@ -97,6 +101,25 @@
     },
   ];
 
+  const USGS_NIMS_CAMERAS = [
+    {
+      id: 'nims-sebewaing-center-street',
+      camId: 'MI_Sebewaing_River_at_Center_Street_at_Sebewaing',
+      nwisId: '04157550',
+      label: 'Sebewaing River at Center Street',
+      provider: 'USGS NIMS',
+      view: 'Official USGS river snapshot camera at Center Street in Sebewaing.',
+      lat: 43.733175,
+      lon: -83.4511667,
+      pageUrl: 'https://waterdata.usgs.gov/monitoring-location/04157550/',
+      smallDir: 'https://usgs-nims-images.s3.amazonaws.com/720/MI_Sebewaing_River_at_Center_Street_at_Sebewaing/',
+      thumbDir: 'https://usgs-nims-images.s3.amazonaws.com/thumbnail/MI_Sebewaing_River_at_Center_Street_at_Sebewaing/',
+      tlDir: 'https://usgs-nims-images.s3.amazonaws.com/timelapse/MI_Sebewaing_River_at_Center_Street_at_Sebewaing/',
+      timelapseUrl: 'https://usgs-nims-images.s3.amazonaws.com/timelapse/MI_Sebewaing_River_at_Center_Street_at_Sebewaing/MI_Sebewaing_River_at_Center_Street_at_Sebewaing_720.mp4',
+      newestImageDT: '2026-04-16T02:00:23.000Z',
+    },
+  ];
+
   const EMBEDDED_DAMS = [
     { id: 'dam-1', DamName: 'Hardy Dam', County: 'Newaygo', River: 'Muskegon River', OwnerName: 'Consumers Energy', DownstreamHazardPotential: 'High', ConditionAssessment: 'Fair', Latitude: 43.5147, Longitude: -85.6421, DamType: 'Concrete', Purposes: 'Hydroelectric' },
     { id: 'dam-2', DamName: 'Croton Dam', County: 'Newaygo', River: 'Muskegon River', OwnerName: 'Consumers Energy', DownstreamHazardPotential: 'High', ConditionAssessment: 'Fair', Latitude: 43.4216, Longitude: -85.6683, DamType: 'Concrete', Purposes: 'Hydroelectric' },
@@ -174,6 +197,7 @@
     defaultStageLimit: 25,
     links: CAMERA_LINKS,
     cameraFeeds: CAMERA_FEEDS,
+    nimsCameras: USGS_NIMS_CAMERAS,
     dams: EMBEDDED_DAMS,
     gauges: EMBEDDED_GAUGES,
     alerts: [],

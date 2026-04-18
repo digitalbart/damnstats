@@ -11,10 +11,16 @@
     markersLayer: null,
     selectedLabelLayer: null,
     alertLayer: null,
+    impactLayer: null,
     radarLayer: null,
     stageChart: null,
+    chartView: 'dots',
     allDams: [],
+    baseDams: [],
+    baseGauges: [],
+    nimsCameras: [],
     activeAlerts: [],
+    floodingImpactFeatures: [],
     weatherOutlook: null,
     selectedDamId: null,
     viewportMode: 'map',
@@ -30,7 +36,7 @@
 
   function safeNumber(value) {
     const number = Number(value);
-    if (!Number.isFinite(number) || Math.abs(number) > 99999) return null;
+    if (!Number.isFinite(number) || Math.abs(number) > 99999 || number <= -998) return null;
     return number;
   }
 
@@ -376,6 +382,8 @@
         forecastStage: null,
         stageTrend: [],
         stageLabels: [],
+        rtfiImpacts: [],
+        rtfiFloodingCount: 0,
         linkedGaugeId: null,
         linkedGaugeName: null,
         linkedGaugeMiles: null,
@@ -384,6 +392,7 @@
         countyAlertCount: 0,
         cameraFeed,
         cameraFeeds,
+        nimsCameras: [],
         sourceLinks: {
           damInventory: src.damInventoryUrl || data.links.egle,
           camera: lat !== null && lon !== null ? `${data.links.mdot}?lat=${lat}&lon=${lon}&zoom=12` : data.links.mdot,
@@ -436,6 +445,132 @@
     }).filter((gauge) => gauge.lat !== null && gauge.lon !== null);
   }
 
+  function normalizeOgcLatestStages(payload) {
+    const rows = Array.isArray(payload?.features) ? payload.features : [];
+    return rows.map((feature, index) => {
+      const props = feature.properties || {};
+      const coords = feature.geometry?.coordinates || [];
+      const usgsId = String(props.monitoring_location_id || '').replace(/^USGS-/, '') || null;
+      const value = safeNumber(props.value);
+      const lat = safeNumber(coords[1]);
+      const lon = safeNumber(coords[0]);
+      if (!usgsId || value === null || lat === null || lon === null) return null;
+      const label = props.time ? new Date(props.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+
+      return {
+        id: `gauge-${usgsId || index}`,
+        usgsId,
+        nwpsLid: null,
+        name: `USGS ${usgsId}`,
+        lat,
+        lon,
+        currentStage: value,
+        forecastStage: value,
+        floodStage: null,
+        stageTrend: [value],
+        stageLabels: [label],
+        observedUpdated: props.time || null,
+        sourceLinks: {
+          usgs: `https://waterdata.usgs.gov/monitoring-location/${usgsId}/`,
+        },
+      };
+    }).filter(Boolean);
+  }
+
+  function normalizeNwpsGaugeIndex(payload) {
+    const rows = Array.isArray(payload?.gauges) ? payload.gauges : [];
+    return rows.map((gauge) => {
+      const stateCode = gauge.state?.abbreviation || '';
+      if (stateCode !== 'MI') return null;
+
+      const lid = gauge.lid || null;
+      const observed = safeNumber(gauge.status?.observed?.primary);
+      const forecast = safeNumber(gauge.status?.forecast?.primary);
+      const currentStage = observed ?? forecast;
+      const forecastStage = forecast ?? observed;
+      const observedTime = gauge.status?.observed?.validTime || null;
+      const forecastTime = gauge.status?.forecast?.validTime || null;
+      const labelTime = observedTime || forecastTime;
+      const label = labelTime ? new Date(labelTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+
+      return {
+        id: `nwps-${lid}`,
+        usgsId: null,
+        nwpsLid: lid,
+        name: gauge.name || `NWPS ${lid}`,
+        lat: safeNumber(gauge.latitude),
+        lon: safeNumber(gauge.longitude),
+        currentStage,
+        forecastStage,
+        floodStage: null,
+        stageTrend: currentStage !== null ? [currentStage] : [],
+        stageLabels: currentStage !== null ? [label] : [],
+        observedUpdated: observedTime || forecastTime || null,
+        sourceLinks: {
+          noaaGauge: lid ? `https://water.noaa.gov/gauges/${encodeURIComponent(lid)}` : data.links.noaa,
+        },
+      };
+    }).filter((gauge) => gauge?.nwpsLid && gauge.lat !== null && gauge.lon !== null);
+  }
+
+  function mergeGaugeSets(localGauges, liveGauges) {
+    const byId = new Map();
+    liveGauges.forEach((gauge) => byId.set(gauge.usgsId || gauge.id, gauge));
+    localGauges.forEach((gauge) => {
+      const key = gauge.usgsId || gauge.id;
+      const live = byId.get(key);
+      byId.set(key, live ? {
+        ...live,
+        name: gauge.name || live.name,
+        nwpsLid: gauge.nwpsLid || live.nwpsLid,
+        floodStage: gauge.floodStage ?? live.floodStage,
+        stageTrend: gauge.stageTrend?.length > 1 ? gauge.stageTrend : live.stageTrend,
+        stageLabels: gauge.stageLabels?.length > 1 ? gauge.stageLabels : live.stageLabels,
+        sourceLinks: { ...live.sourceLinks, ...gauge.sourceLinks },
+      } : gauge);
+    });
+    return Array.from(byId.values());
+  }
+
+  function normalizeNimsCameras(rows) {
+    return rows.map((camera) => ({
+      id: camera.id || camera.camId,
+      camId: camera.camId,
+      nwisId: camera.nwisId || null,
+      label: camera.label || camera.camName || 'USGS camera',
+      provider: camera.provider || 'USGS NIMS',
+      view: camera.view || camera.camDesc || 'Official USGS river camera snapshot.',
+      lat: safeNumber(camera.lat),
+      lon: safeNumber(camera.lon ?? camera.lng),
+      pageUrl: camera.pageUrl || (camera.nwisId ? `https://waterdata.usgs.gov/monitoring-location/${camera.nwisId}/` : data.links.usgsWebcams),
+      smallDir: camera.smallDir || null,
+      thumbDir: camera.thumbDir || null,
+      tlDir: camera.tlDir || null,
+      timelapseUrl: camera.timelapseUrl || (camera.tlDir && camera.camId ? `${camera.tlDir}${camera.camId}_720.mp4` : null),
+      imageUrl: camera.imageUrl || null,
+      imageTime: camera.imageTime || null,
+      newestImageDT: camera.newestImageDT || null,
+    })).filter((camera) => camera.camId && camera.lat !== null && camera.lon !== null);
+  }
+
+  function attachNimsCameras(sites, cameras) {
+    return sites.map((site) => {
+      if (!hasCoords(site)) return { ...site, nimsCameras: [] };
+      const nearby = cameras.map((camera) => ({
+        ...camera,
+        distanceMiles: Number(haversineMiles(site.lat, site.lon, camera.lat, camera.lon).toFixed(1)),
+      })).filter((camera) => (
+        camera.nwisId === site.linkedGaugeUsgsId
+        || camera.distanceMiles <= 8
+      )).sort((a, b) => {
+        if (a.nwisId === site.linkedGaugeUsgsId && b.nwisId !== site.linkedGaugeUsgsId) return -1;
+        if (b.nwisId === site.linkedGaugeUsgsId && a.nwisId !== site.linkedGaugeUsgsId) return 1;
+        return a.distanceMiles - b.distanceMiles;
+      });
+      return { ...site, nimsCameras: nearby.slice(0, 1) };
+    });
+  }
+
   function normalizeAlerts(rows) {
     return rows.map((feature, index) => {
       const props = feature.properties || feature;
@@ -451,6 +586,34 @@
         geometry: feature.geometry || props.geometry || null,
       };
     });
+  }
+
+  function normalizeRtfiFeatures(payload) {
+    const rows = Array.isArray(payload?.features) ? payload.features : (Array.isArray(payload) ? payload : []);
+    return rows.map((feature, index) => {
+      const props = feature.properties || feature;
+      const coords = feature.geometry?.coordinates || [];
+      const lon = safeNumber(coords[0] ?? props.longitude ?? props.lon);
+      const lat = safeNumber(coords[1] ?? props.latitude ?? props.lat);
+      const elevation = safeNumber(props.rp_elevation ?? props.elevation);
+      const gageHeight = safeNumber(props.gage_height ?? props.gageHeight);
+      return {
+        id: String(props.rp_id || props.id || `rtfi-${index}`),
+        name: props.rp_name || props.name || 'Impact point',
+        siteName: props.site_name || props.siteName || '',
+        description: props.description || '',
+        nwisId: props.nwis_id || props.nwisId || null,
+        nwsId: props.nws_id || props.nwsId || null,
+        unit: props.unit || 'ft',
+        elevation,
+        gageHeight,
+        isFlooding: Boolean(props.is_flooding ?? props.isFlooding),
+        active: props.active !== false,
+        lat,
+        lon,
+        raw: feature,
+      };
+    }).filter((feature) => feature.lat !== null && feature.lon !== null);
   }
 
   function normalizeWeatherOutlook(periods) {
@@ -484,6 +647,52 @@
       value: safeNumber(item.value),
       dateTime: item.dateTime || null,
     })).filter((item) => item.value !== null);
+  }
+
+  function normalizeNwpsStageSeries(series, limit, edge = 'last') {
+    const rows = Array.isArray(series?.data) ? series.data : [];
+    const values = rows.map((item) => ({
+      value: safeNumber(item.primary),
+      dateTime: item.validTime || null,
+    })).filter((item) => item.value !== null && item.dateTime);
+    return edge === 'first' ? values.slice(0, limit) : values.slice(-limit);
+  }
+
+  function compactNwpsStageFlow(stageflow) {
+    return {
+      observed: {
+        ...stageflow?.observed,
+        data: (stageflow?.observed?.data || []).slice(-96),
+      },
+      forecast: {
+        ...stageflow?.forecast,
+        data: (stageflow?.forecast?.data || []).slice(0, 96),
+      },
+    };
+  }
+
+  function applyNwpsStageFlow(site, stageflow, fetchedAt) {
+    if (!site || !stageflow) return;
+    const observed = normalizeNwpsStageSeries(stageflow.observed, 96, 'last');
+    const forecast = normalizeNwpsStageSeries(stageflow.forecast, 96, 'first');
+
+    site.nwpsObservedSeries = observed;
+    site.nwpsForecastSeries = forecast;
+    site.nwpsStageFlowFetchedAt = fetchedAt;
+
+    const latestObserved = observed[observed.length - 1];
+    const maxForecast = forecast.length ? Math.max(...forecast.map((item) => item.value)) : null;
+    const forecastStage = maxForecast ?? latestObserved?.value ?? site.forecastStage;
+    const stats = floodStats(site.floodStage, forecastStage);
+
+    if (latestObserved) {
+      site.currentStage = latestObserved.value;
+      site.observedUpdated = latestObserved.dateTime;
+    }
+    site.forecastStage = forecastStage;
+    site.floodStage = stats.floodStage;
+    site.floodPercent = stats.floodPercent;
+    site.floodDistance = stats.floodDistance;
   }
 
   function floodStats(floodStage, forecastStage) {
@@ -530,6 +739,19 @@
     site.observedUpdated = gauge.status?.observed?.validTime || site.observedUpdated || null;
     site.liveGaugeFetchedAt = fetchedAt;
     site.forecastSource = 'nwps';
+    site.nwpsLid = gauge.lid || site.linkedGaugeNwpsLid;
+    site.linkedGaugeNwpsLid = site.nwpsLid || site.linkedGaugeNwpsLid;
+    site.linkedGaugeUsgsId = gauge.usgsId || site.linkedGaugeUsgsId;
+    site.nwpsGaugeName = gauge.name || site.linkedGaugeName;
+    site.linkedGaugeName = site.nwpsGaugeName || site.linkedGaugeName;
+    site.nwpsHydrographUrl = gauge.images?.hydrograph?.default || null;
+    site.nwpsFloodcatUrl = gauge.images?.hydrograph?.floodcat || null;
+    site.nwpsFloodCategories = gauge.flood?.categories || null;
+    site.nwpsTabularUrl = gauge.lid ? `https://water.noaa.gov/gauges/${encodeURIComponent(gauge.lid)}/tabular` : null;
+    site.sourceLinks = {
+      ...site.sourceLinks,
+      noaaGauge: gauge.lid ? `https://water.noaa.gov/gauges/${encodeURIComponent(gauge.lid)}` : site.sourceLinks?.noaaGauge,
+    };
     state.gaugeFetchedAt = fetchedAt;
   }
 
@@ -615,7 +837,7 @@
         sourceLinks: {
           ...dam.sourceLinks,
           usgs: linkedGauge.sourceLinks?.usgs || null,
-          noaaGauge: linkedGauge.sourceLinks?.usgs || data.links.noaa,
+          noaaGauge: linkedGauge.sourceLinks?.noaaGauge || (linkedGauge.nwpsLid ? `https://water.noaa.gov/gauges/${encodeURIComponent(linkedGauge.nwpsLid)}` : data.links.noaa),
         },
       };
     });
@@ -632,7 +854,7 @@
       if (quickView === 'watch' && !isInteresting(site)) return false;
       if (quickView === 'hydro' && !isHydroSite(site)) return false;
       if (quickView === 'linked' && !site.linkedGaugeId) return false;
-      if (quickView === 'camera' && !site.cameraFeeds?.length) return false;
+      if (quickView === 'camera' && !site.cameraFeeds?.length && !site.nimsCameras?.length) return false;
       if (!query) return true;
 
       const haystack = [
@@ -646,6 +868,7 @@
         site.damType,
         site.purposes,
         ...(site.cameraFeeds || []).map((feed) => feed.label),
+        ...(site.nimsCameras || []).map((camera) => camera.label),
       ].filter(Boolean).join(' ').toLowerCase();
       return haystack.includes(query);
     });
@@ -661,7 +884,7 @@
       if (sortMode === 'flood') return floodSortValue(a) - floodSortValue(b) || attentionScore(b) - attentionScore(a) || byName;
       if (sortMode === 'gauge') return (a.linkedGaugeMiles ?? 999) - (b.linkedGaugeMiles ?? 999) || attentionScore(b) - attentionScore(a) || byName;
       if (sortMode === 'danger') return attentionScore(b) - attentionScore(a) || floodSortValue(a) - floodSortValue(b) || byName;
-      if (quickView === 'camera') return (b.cameraFeeds?.length || 0) - (a.cameraFeeds?.length || 0) || attentionScore(b) - attentionScore(a);
+      if (quickView === 'camera') return ((b.cameraFeeds?.length || 0) + (b.nimsCameras?.length || 0)) - ((a.cameraFeeds?.length || 0) + (a.nimsCameras?.length || 0)) || attentionScore(b) - attentionScore(a);
       if (quickView === 'hydro') return String(a.river || '').localeCompare(String(b.river || '')) || String(a.name || '').localeCompare(String(b.name || ''));
       return byName;
     });
@@ -677,6 +900,8 @@
     state.map.getPane('radarPane').style.zIndex = 450;
     state.map.createPane('alertPane');
     state.map.getPane('alertPane').style.zIndex = 500;
+    state.map.createPane('impactPane');
+    state.map.getPane('impactPane').style.zIndex = 520;
     const openStreetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
       attribution: '&copy; OpenStreetMap contributors',
@@ -718,6 +943,7 @@
     state.markersLayer = L.layerGroup().addTo(state.map);
     state.selectedLabelLayer = L.layerGroup().addTo(state.map);
     state.alertLayer = L.layerGroup().addTo(state.map);
+    state.impactLayer = L.layerGroup().addTo(state.map);
   }
 
   function alertStyle(alert) {
@@ -768,6 +994,50 @@
     }
   }
 
+  function isNearMichigan(feature) {
+    return feature.lat >= 41 && feature.lat <= 48.8 && feature.lon >= -91.8 && feature.lon <= -82;
+  }
+
+  function impactPopup(feature) {
+    const delta = feature.elevation !== null && feature.gageHeight !== null
+      ? `${Math.abs(feature.gageHeight - feature.elevation).toFixed(1)} ft ${feature.gageHeight >= feature.elevation ? 'over' : 'below'}`
+      : '';
+    return `
+      <strong>${ui.esc(feature.name)}</strong><br>
+      <span>${ui.esc(feature.siteName || 'USGS impact point')}</span><br>
+      ${delta ? `<span>${ui.esc(delta)} impact height</span><br>` : ''}
+      ${ui.esc(feature.description || '').slice(0, 180)}
+    `;
+  }
+
+  function renderImpactMapOverlays(site) {
+    if (!state.impactLayer) return;
+    state.impactLayer.clearLayers();
+
+    state.floodingImpactFeatures.filter(isNearMichigan).forEach((feature) => {
+      L.circleMarker([feature.lat, feature.lon], {
+        pane: 'impactPane',
+        radius: 6,
+        color: '#ff7d95',
+        weight: 2,
+        fillColor: '#ff7d95',
+        fillOpacity: 0.62,
+      }).bindPopup(impactPopup(feature)).addTo(state.impactLayer);
+    });
+
+    if (!site?.rtfiImpacts?.length) return;
+    site.rtfiImpacts.forEach((feature) => {
+      L.circleMarker([feature.lat, feature.lon], {
+        pane: 'impactPane',
+        radius: feature.isFlooding ? 7 : 5,
+        color: feature.isFlooding ? '#ff7d95' : '#ffd166',
+        weight: 2,
+        fillColor: feature.isFlooding ? '#ff7d95' : '#ffd166',
+        fillOpacity: feature.isFlooding ? 0.68 : 0.42,
+      }).bindPopup(impactPopup(feature)).addTo(state.impactLayer);
+    });
+  }
+
   function renderMarkers(sites) {
     state.markersLayer.clearLayers();
     if (state.selectedLabelLayer) state.selectedLabelLayer.clearLayers();
@@ -796,7 +1066,53 @@
     });
   }
 
+  function chartPointLabel(item) {
+    if (!item?.dateTime) return '';
+    const date = new Date(item.dateTime);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric' });
+  }
+
+  function chartLabelKey(item) {
+    return item?.dateTime || chartPointLabel(item);
+  }
+
+  function buildNwpsChartData(site) {
+    const observed = site?.nwpsObservedSeries || [];
+    const forecast = site?.nwpsForecastSeries || [];
+    if (!observed.length && !forecast.length) return null;
+
+    const points = [...observed, ...forecast].sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+    const keys = [];
+    const labels = [];
+    points.forEach((point) => {
+      const key = chartLabelKey(point);
+      if (!key || keys.includes(key)) return;
+      keys.push(key);
+      labels.push(chartPointLabel(point));
+    });
+
+    const indexByKey = new Map(keys.map((key, index) => [key, index]));
+    const observedData = Array(keys.length).fill(null);
+    const forecastData = Array(keys.length).fill(null);
+    observed.forEach((point) => {
+      const index = indexByKey.get(chartLabelKey(point));
+      if (index !== undefined) observedData[index] = point.value;
+    });
+    forecast.forEach((point) => {
+      const index = indexByKey.get(chartLabelKey(point));
+      if (index !== undefined) forecastData[index] = point.value;
+    });
+
+    return { labels, observedData, forecastData };
+  }
+
   function ensureChart() {
+    const frame = document.querySelector('.chart-frame');
+    if (!$('stageChart')) {
+      frame.querySelector('.dots-chart-panel')?.insertAdjacentHTML('beforeend', '<canvas id="stageChart"></canvas>');
+      if (!$('stageChart')) frame.innerHTML = '<canvas id="stageChart"></canvas>';
+    }
     if (state.stageChart) return state.stageChart;
 
     state.stageChart = new Chart($('stageChart'), {
@@ -809,8 +1125,20 @@
           borderWidth: 2,
           tension: 0.3,
           fill: true,
+          pointRadius: 3,
+          pointHoverRadius: 5,
           borderColor: '#7de8e0',
           backgroundColor: 'rgba(125, 232, 224, 0.12)',
+        }, {
+          label: 'Forecast stage',
+          data: [],
+          borderWidth: 2,
+          tension: 0.25,
+          fill: false,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderColor: '#9b6df5',
+          backgroundColor: 'rgba(155, 109, 245, 0.12)',
         }, {
           label: 'Flood level',
           data: [],
@@ -854,30 +1182,77 @@
     return state.stageChart;
   }
 
-  function renderChart(site) {
-    const chart = ensureChart();
-    $('chartSiteName').textContent = site?.name || 'No dam selected';
+  function renderChartShell(site) {
+    const frame = document.querySelector('.chart-frame');
+    const hasOfficial = Boolean(site?.nwpsHydrographUrl);
+    const officialHidden = state.chartView === 'dots' || !hasOfficial;
+    const dotsHidden = state.chartView === 'official' && hasOfficial;
+    const cacheBust = encodeURIComponent(site?.observedUpdated || site?.liveGaugeFetchedAt || Date.now());
+    const graphUrl = hasOfficial ? `${site.nwpsHydrographUrl}?v=${cacheBust}` : '';
+    const graphHref = site?.nwpsTabularUrl || site?.sourceLinks?.noaaGauge || graphUrl;
 
-    if (!site?.linkedGaugeId || !site.stageTrend?.length) {
+    frame.innerHTML = `
+      ${hasOfficial ? `
+        <div class="chart-tabs" aria-label="Gauge chart view">
+          <button type="button" class="${state.chartView === 'dots' ? 'is-active' : ''}" data-chart-view="dots">Dots</button>
+          <button type="button" class="${state.chartView === 'official' ? 'is-active' : ''}" data-chart-view="official">NOAA</button>
+        </div>
+      ` : ''}
+      <div class="dots-chart-panel" ${dotsHidden ? 'hidden' : ''}>
+        <canvas id="stageChart"></canvas>
+      </div>
+      ${hasOfficial ? `
+        <a class="official-hydrograph" href="${ui.esc(graphHref)}" target="_blank" rel="noreferrer" ${officialHidden ? 'hidden' : ''}>
+          <img src="${ui.esc(graphUrl)}" alt="Official NOAA hydrograph for ${ui.esc(site?.nwpsGaugeName || site?.linkedGaugeName || site?.name || 'selected gauge')}" loading="lazy">
+        </a>
+      ` : ''}
+    `;
+    if (state.stageChart) {
+      state.stageChart.destroy();
+      state.stageChart = null;
+    }
+  }
+
+  function renderChart(site) {
+    $('chartSiteName').textContent = site?.nwpsGaugeName || site?.linkedGaugeName || site?.name || 'No dam selected';
+    renderChartShell(site);
+
+    const chart = ensureChart();
+    const nwpsChart = buildNwpsChartData(site);
+
+    if (!site?.linkedGaugeId && !site?.linkedGaugeNwpsLid) {
       chart.data.labels = ['No close live gauge'];
       chart.data.datasets[0].data = [0];
       chart.data.datasets[1].data = [];
+      chart.data.datasets[2].data = [];
       chart.options.scales.y.suggestedMin = 0;
       chart.options.scales.y.suggestedMax = 10;
       chart.update();
       return;
     }
 
-    const maxValue = Math.max(...site.stageTrend, 1);
-    chart.data.labels = site.stageLabels;
-    chart.data.datasets[0].data = site.stageTrend;
-    chart.data.datasets[1].data = site.floodStage ? site.stageTrend.map(() => site.floodStage) : [];
-    chart.data.datasets[1].label = site.floodDistance !== null && site.floodDistance !== undefined
+    const labels = nwpsChart?.labels || site.stageLabels || [];
+    const observedData = nwpsChart?.observedData || site.stageTrend || [];
+    const forecastData = nwpsChart?.forecastData || [];
+    const allValues = [...observedData, ...forecastData].filter((value) => value !== null && value !== undefined);
+    const maxValue = Math.max(...allValues, 1);
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = observedData;
+    chart.data.datasets[1].data = forecastData;
+    chart.data.datasets[1].hidden = !forecastData.some((value) => value !== null && value !== undefined);
+    chart.data.datasets[2].data = site.floodStage ? labels.map(() => site.floodStage) : [];
+    chart.data.datasets[2].label = site.floodDistance !== null && site.floodDistance !== undefined
       ? `Flood level (${Math.abs(site.floodDistance).toFixed(1)} ft ${site.floodDistance <= 0 ? 'over' : 'below'})`
       : 'Flood level';
-    chart.options.scales.y.suggestedMin = 0;
+    chart.options.scales.y.suggestedMin = Math.max(0, Math.floor(Math.min(...allValues, site.floodStage || maxValue) - 2));
     chart.options.scales.y.suggestedMax = Math.ceil(Math.max(maxValue, site.floodStage || 0) + 2);
     chart.update();
+  }
+
+  function setChartView(view) {
+    if (!['dots', 'official'].includes(view)) return;
+    state.chartView = view;
+    renderTelemetry(state.allDams.find((dam) => dam.id === state.selectedDamId));
   }
 
   function renderTelemetry(site) {
@@ -887,9 +1262,10 @@
 
   function renderDetails(site) {
     $('detailsPanel').innerHTML = ui.detailsPanel(site, { riskClass, riskLabel }, data.links, {
-      showCameraEmbed: state.viewportMode !== 'cameras',
+      showCameraEmbed: true,
       freshness: freshnessItems(site),
     });
+    renderImpactMapOverlays(site);
   }
 
   function renderAlerts(meta = {}) {
@@ -1162,37 +1538,74 @@
     renderOutlook(site);
   }
 
+  async function fetchSelectedNwpsStageFlow(site, identifier, options = {}) {
+    if (options.listOnly || !identifier) return;
+    const selectedOnly = options.selectedOnly !== false;
+    const isStillSelected = () => state.selectedDamId === site.id;
+    const key = `${CACHE_PREFIX}:nwps-stageflow:${identifier}`;
+    const cached = readCache(key);
+    if (cached?.stageflow) {
+      if (selectedOnly && !isStillSelected()) return;
+      applyNwpsStageFlow(site, cached.stageflow, cached.fetchedAt);
+      renderGaugeUpdate(site, options);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${data.links.nwpsApi}/gauges/${encodeURIComponent(identifier)}/stageflow`);
+      if (!response.ok) throw new Error(`NWPS stageflow ${response.status}`);
+      const stageflow = compactNwpsStageFlow(await response.json());
+      if (selectedOnly && !isStillSelected()) return;
+      const fetchedAt = Date.now();
+      writeCache(key, { stageflow });
+      applyNwpsStageFlow(site, stageflow, fetchedAt);
+      renderGaugeUpdate(site, options);
+    } catch (error) {
+      // The gauge metadata and USGS fallback still render if the hydrograph series is unavailable.
+    }
+  }
+
   async function fetchSelectedGauge(site, options = {}) {
     const selectedOnly = options.selectedOnly !== false;
     const isStillSelected = () => state.selectedDamId === site.id;
 
-    if (!site.linkedGaugeUsgsId) {
+    if (!site.linkedGaugeUsgsId && !site.linkedGaugeNwpsLid) {
       if (!options.listOnly) state.gaugeFetchedAt = null;
       return;
     }
 
-    if (site.linkedGaugeNwpsLid) {
-      const nwpsKey = `${CACHE_PREFIX}:nwps:${site.linkedGaugeNwpsLid}`;
+    const nwpsIdentifier = site.linkedGaugeNwpsLid || site.linkedGaugeUsgsId;
+    if (nwpsIdentifier) {
+      const nwpsKey = `${CACHE_PREFIX}:nwps:${nwpsIdentifier}`;
       const cachedNwps = readCache(nwpsKey);
-      if (cachedNwps?.gauge) {
+      if (cachedNwps?.missing) {
+        // NOAA/NWPS does not have every USGS stage gauge. Avoid hammering misses.
+      } else if (cachedNwps?.gauge) {
         if (selectedOnly && !isStillSelected()) return;
         applyNwpsGauge(site, cachedNwps.gauge, cachedNwps.fetchedAt);
         renderGaugeUpdate(site, options);
+        await fetchSelectedNwpsStageFlow(site, site.linkedGaugeNwpsLid || nwpsIdentifier, options);
       } else {
         try {
-          const response = await fetch(`${data.links.nwpsApi}/gauges/${encodeURIComponent(site.linkedGaugeNwpsLid)}`);
-          if (!response.ok) throw new Error(`NWPS ${response.status}`);
+          const response = await fetch(`${data.links.nwpsApi}/gauges/${encodeURIComponent(nwpsIdentifier)}`);
+          if (!response.ok) {
+            if (response.status === 404) writeCache(nwpsKey, { missing: true });
+            throw new Error(`NWPS ${response.status}`);
+          }
           const gauge = await response.json();
           if (selectedOnly && !isStillSelected()) return;
           const fetchedAt = Date.now();
           writeCache(nwpsKey, { gauge });
           applyNwpsGauge(site, gauge, fetchedAt);
           renderGaugeUpdate(site, options);
+          await fetchSelectedNwpsStageFlow(site, site.linkedGaugeNwpsLid || nwpsIdentifier, options);
         } catch (error) {
           // USGS fallback below still provides observed stage when NWPS is unavailable.
         }
       }
     }
+
+    if (!site.linkedGaugeUsgsId) return;
 
     const key = `${CACHE_PREFIX}:gauge:${site.linkedGaugeUsgsId}`;
     const cached = readCache(key);
@@ -1278,6 +1691,157 @@
     }
   }
 
+  function parseNimsImageTime(filename) {
+    const match = String(filename || '').match(/___(.+?)Z\.jpg$/);
+    if (!match) return null;
+    const iso = `${match[1].replace(/T(\d{2})-(\d{2})-(\d{2})$/, 'T$1:$2:$3')}Z`;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+
+  async function fetchSelectedNimsCameras(site) {
+    const camera = site.nimsCameras?.[0];
+    if (!camera?.camId || !camera.smallDir || camera.imageUrl) return;
+
+    const key = `${CACHE_PREFIX}:nims:${camera.camId}`;
+    const cached = readCache(key);
+    if (cached?.filename) {
+      if (state.selectedDamId !== site.id) return;
+      camera.imageUrl = `${camera.smallDir}${cached.filename}`;
+      camera.imageTime = parseNimsImageTime(cached.filename) || cacheAgeLabel(cached.fetchedAt);
+      renderDetails(site);
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({ camId: camera.camId, limit: '1' });
+      const response = await fetch(`${data.links.nimsApi}/listFiles?${params.toString()}`, { headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(`USGS NIMS ${response.status}`);
+      const files = await response.json();
+      const filename = Array.isArray(files) ? files[0] : null;
+      if (!filename || state.selectedDamId !== site.id) return;
+      camera.imageUrl = `${camera.smallDir}${filename}`;
+      camera.imageTime = parseNimsImageTime(filename) || 'latest image';
+      writeCache(key, { filename });
+      renderDetails(site);
+    } catch (error) {
+      // The YouTube tab remains available when the official snapshot cannot be loaded.
+    }
+  }
+
+  async function fetchStatewideLatestStages() {
+    const key = `${CACHE_PREFIX}:usgs:latest-00065-mi`;
+    const cached = readCache(key);
+    if (cached?.features) return normalizeOgcLatestStages({ features: cached.features });
+
+    const params = new URLSearchParams({
+      f: 'json',
+      bbox: '-91,41,-82,49',
+      filter: "parameter_code='00065'",
+      limit: '1000',
+    });
+    const response = await fetch(`${data.links.usgsOgcLatest}?${params.toString()}`, { headers: { Accept: 'application/geo+json' } });
+    if (!response.ok) throw new Error(`USGS OGC ${response.status}`);
+    const json = await response.json();
+    writeCache(key, { features: json.features || [] });
+    return normalizeOgcLatestStages(json);
+  }
+
+  async function fetchMichiganNwpsGaugeIndex() {
+    const key = `${CACHE_PREFIX}:nwps:mi-index`;
+    const cached = readCache(key);
+    if (cached?.gauges) return normalizeNwpsGaugeIndex({ gauges: cached.gauges });
+
+    const params = new URLSearchParams({
+      'bbox.xmin': '-91',
+      'bbox.ymin': '41',
+      'bbox.xmax': '-82',
+      'bbox.ymax': '49',
+      srid: 'EPSG_4326',
+    });
+    const response = await fetch(`${data.links.nwpsApi}/gauges?${params.toString()}`, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`NWPS index ${response.status}`);
+    const json = await response.json();
+    const gauges = (json.gauges || []).filter((gauge) => gauge.state?.abbreviation === 'MI');
+    writeCache(key, { gauges });
+    return normalizeNwpsGaugeIndex({ gauges });
+  }
+
+  function mergeAllGaugeSources(localGauges, liveGauges, nwpsGauges) {
+    return mergeGaugeSets(mergeGaugeSets(localGauges, liveGauges), nwpsGauges);
+  }
+
+  async function fetchRtfiFloodingImpacts() {
+    const key = `${CACHE_PREFIX}:rtfi:flooding`;
+    const cached = readCache(key);
+    if (cached?.features) {
+      state.floodingImpactFeatures = normalizeRtfiFeatures(cached.features);
+      renderImpactMapOverlays(state.allDams.find((dam) => dam.id === state.selectedDamId));
+      return;
+    }
+
+    try {
+      const response = await fetch(data.links.rtfiFloodingGeojson, { headers: { Accept: 'application/geo+json' } });
+      if (!response.ok) throw new Error(`USGS RT-FI ${response.status}`);
+      const json = await response.json();
+      state.floodingImpactFeatures = normalizeRtfiFeatures(json);
+      writeCache(key, { features: json.features || [] });
+      renderImpactMapOverlays(state.allDams.find((dam) => dam.id === state.selectedDamId));
+    } catch (error) {
+      const stale = (() => {
+        try {
+          return JSON.parse(localStorage.getItem(key) || 'null');
+        } catch (cacheError) {
+          return null;
+        }
+      })();
+      state.floodingImpactFeatures = normalizeRtfiFeatures(stale?.features || []);
+      renderImpactMapOverlays(state.allDams.find((dam) => dam.id === state.selectedDamId));
+    }
+  }
+
+  async function fetchSelectedRtfiImpacts(site) {
+    if (!site.linkedGaugeUsgsId) return;
+    const key = `${CACHE_PREFIX}:rtfi:nwis:${site.linkedGaugeUsgsId}`;
+    const cached = readCache(key);
+    if (cached?.features) {
+      if (state.selectedDamId !== site.id) return;
+      const impacts = normalizeRtfiFeatures(cached.features);
+      site.rtfiImpacts = impacts;
+      site.rtfiFloodingCount = impacts.filter((feature) => feature.isFlooding).length;
+      renderDetails(site);
+      return;
+    }
+
+    try {
+      const url = `${data.links.rtfiApi}/referencepoints/nwis/${encodeURIComponent(site.linkedGaugeUsgsId)}`;
+      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(`USGS RT-FI ${response.status}`);
+      const json = await response.json();
+      if (state.selectedDamId !== site.id) return;
+      const features = json.features || json.referencePoints || json.items || (Array.isArray(json) ? json : []);
+      const impacts = normalizeRtfiFeatures({ features });
+      site.rtfiImpacts = impacts;
+      site.rtfiFloodingCount = impacts.filter((feature) => feature.isFlooding).length;
+      writeCache(key, { features });
+      renderDetails(site);
+    } catch (error) {
+      const stale = (() => {
+        try {
+          return JSON.parse(localStorage.getItem(key) || 'null');
+        } catch (cacheError) {
+          return null;
+        }
+      })();
+      if (state.selectedDamId !== site.id) return;
+      const impacts = normalizeRtfiFeatures(stale?.features || []);
+      site.rtfiImpacts = impacts;
+      site.rtfiFloodingCount = impacts.filter((feature) => feature.isFlooding).length;
+      renderDetails(site);
+    }
+  }
+
   function refreshSelectedLiveData(site) {
     state.activeAlerts = [];
     state.weatherOutlook = null;
@@ -1290,6 +1854,8 @@
     fetchSelectedGauge(site);
     fetchDamAlerts(site);
     fetchDamWeather(site);
+    fetchSelectedRtfiImpacts(site);
+    fetchSelectedNimsCameras(site);
   }
 
   async function hydrateSidebarGauges() {
@@ -1298,9 +1864,9 @@
 
     const seen = new Set();
     const targets = state.allDams
-      .filter((site) => site.linkedGaugeUsgsId)
+      .filter((site) => site.linkedGaugeUsgsId || site.linkedGaugeNwpsLid)
       .filter((site) => {
-        const key = site.linkedGaugeUsgsId;
+        const key = site.linkedGaugeUsgsId || site.linkedGaugeNwpsLid;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -1379,6 +1945,12 @@
       button.addEventListener('click', () => setViewportMode(button.dataset.viewportMode));
     });
 
+    document.querySelector('.chart-frame').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-chart-view]');
+      if (!button) return;
+      setChartView(button.dataset.chartView);
+    });
+
     $('jumpDetailsBtn').addEventListener('click', () => {
       $('detailsPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -1398,23 +1970,45 @@
     return normalizeGauges(data.gauges);
   }
 
+  async function loadNimsCameras() {
+    return normalizeNimsCameras(data.nimsCameras || []);
+  }
+
   async function loadAlerts() {
     return normalizeAlerts(data.alerts);
   }
 
   async function refreshAll() {
     $('damList').innerHTML = '<p class="empty-state">Loading local dam data...</p>';
-    const [dams, gauges, alerts] = await Promise.all([loadDams(), loadGauges(), loadAlerts()]);
+    const [dams, gauges, alerts, nimsCameras] = await Promise.all([loadDams(), loadGauges(), loadAlerts(), loadNimsCameras()]);
 
     state.activeAlerts = alerts;
     state.weatherOutlook = null;
-    state.allDams = mergeDamsAndGauges(dams, gauges, alerts);
+    state.baseDams = dams;
+    state.baseGauges = gauges;
+    state.nimsCameras = nimsCameras;
+    state.allDams = attachNimsCameras(mergeDamsAndGauges(dams, gauges, alerts), nimsCameras);
 
     renderDamList();
     renderCameraWall();
     fitSites(state.allDams);
     setTimeout(() => state.map.invalidateSize(), 80);
     setTimeout(() => hydrateSidebarGauges(), 500);
+    setTimeout(async () => {
+      try {
+        const [liveGauges, nwpsGauges] = await Promise.all([
+          fetchStatewideLatestStages().catch(() => []),
+          fetchMichiganNwpsGaugeIndex().catch(() => []),
+        ]);
+        state.baseGauges = mergeAllGaugeSources(gauges, liveGauges, nwpsGauges);
+        state.allDams = attachNimsCameras(mergeDamsAndGauges(state.baseDams, state.baseGauges, alerts), state.nimsCameras);
+        renderDamList();
+        hydrateSidebarGauges();
+      } catch (error) {
+        // Local embedded gauges remain available if the statewide layer is unavailable.
+      }
+    }, 650);
+    setTimeout(() => fetchRtfiFloodingImpacts(), 900);
   }
 
   function init() {

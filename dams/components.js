@@ -69,7 +69,8 @@
 
   function damCard(site, selectedId, helpers) {
     const selected = site.id === selectedId ? ' is-selected' : '';
-    const camera = site.cameraFeeds?.length ? `<span class="camera-pill">${site.cameraFeeds.length} cam${site.cameraFeeds.length > 1 ? 's' : ''}</span>` : '';
+    const cameraCount = (site.cameraFeeds?.length || 0) + (site.nimsCameras?.length || 0);
+    const camera = cameraCount ? `<span class="camera-pill">${cameraCount} cam${cameraCount > 1 ? 's' : ''}</span>` : '';
     const hasLocation = site.lat !== null && site.lat !== undefined && site.lon !== null && site.lon !== undefined;
     const gaugeLabel = site.gaugeRelation === 'river-context' ? 'River gauge' : 'Gauge';
     const gauge = site.linkedGaugeName ? `${gaugeLabel} ${fmt(site.linkedGaugeMiles)} mi` : (hasLocation ? 'No gauge context' : 'Location pending');
@@ -108,25 +109,58 @@
 
   function selectedCameraPreview(site, links, showEmbed) {
     const feeds = site.cameraFeeds || [];
-    if (!feeds.length) return '';
-    const feed = feeds[0];
-    const cameraBody = showEmbed
+    const nims = site.nimsCameras || [];
+    const hasNims = Boolean(nims.length);
+    const hasYoutube = Boolean(feeds.length);
+    if (!hasNims && !hasYoutube) return '';
+
+    const official = nims[0] || null;
+    const feed = feeds[0] || null;
+    const tabName = `camera-source-${esc(site.id)}`;
+    const sourceTabs = hasNims && hasYoutube
+      ? `
+        <div class="media-tabs" role="tablist" aria-label="Camera sources">
+          <input id="${tabName}-official" name="${tabName}" type="radio" checked>
+          <label for="${tabName}-official">USGS</label>
+          <input id="${tabName}-youtube" name="${tabName}" type="radio">
+          <label for="${tabName}-youtube">YouTube</label>
+        </div>
+      `
+      : '';
+    const youtubeBody = hasYoutube && showEmbed
       ? `<iframe class="selected-camera-frame" src="${esc(feed.embedUrl)}" title="${esc(feed.label)} live camera"
           loading="lazy" referrerpolicy="strict-origin-when-cross-origin"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowfullscreen></iframe>`
       : '<p class="small-copy"><strong>Camera view:</strong> Playing in the Cameras viewport above.</p>';
+    const officialBody = hasNims
+      ? `
+        <figure class="usgs-snapshot">
+          ${official.imageUrl
+            ? `<img src="${esc(official.imageUrl)}" alt="${esc(official.label)} latest USGS snapshot" loading="lazy">`
+            : '<div class="empty-state">Loading latest USGS snapshot...</div>'}
+          <figcaption>
+            <strong>${esc(official.label)}</strong>
+            <span>${official.distanceMiles !== null && official.distanceMiles !== undefined ? `${fmt(official.distanceMiles)} mi away · ` : ''}${official.imageTime ? `Updated ${esc(official.imageTime)}` : 'Official USGS NIMS camera'}</span>
+          </figcaption>
+        </figure>
+      `
+      : '';
+    const providerLabel = hasNims ? 'USGS snapshot' : 'Live cam';
 
     return `
       <div class="copy-block">
         <div class="card-top">
           <div>
-            <h3>${esc(feed.label)}</h3>
-            <p class="subtle">${esc(feed.view || feed.note)}</p>
+            <h3>${esc(hasNims ? official.label : feed.label)}</h3>
           </div>
-          <span class="camera-pill">Live cam</span>
+          <span class="camera-pill">${providerLabel}</span>
         </div>
-        ${cameraBody}
+        ${sourceTabs}
+        ${hasNims && hasYoutube ? `
+          <div class="media-pane media-pane-official">${officialBody}</div>
+          <div class="media-pane media-pane-youtube">${youtubeBody}</div>
+        ` : (officialBody || youtubeBody)}
       </div>
     `;
   }
@@ -303,10 +337,14 @@
   function detailsPanel(site, helpers, links, options = {}) {
     const feeds = site.cameraFeeds || [];
     const feed = feeds[0] || null;
+    const impactCount = site.rtfiImpacts?.length || 0;
+    const floodingImpactCount = site.rtfiFloodingCount || 0;
     const linksHtml = [
       site.sourceLinks?.damInventory ? ['Inventory', site.sourceLinks.damInventory] : null,
       site.sourceLinks?.usgs ? ['Gauge', site.sourceLinks.usgs] : null,
       feed ? ['Camera', feed.pageUrl] : null,
+      site.nimsCameras?.[0]?.pageUrl ? ['USGS cam', site.nimsCameras[0].pageUrl] : null,
+      site.nwpsTabularUrl ? ['NOAA table', site.nwpsTabularUrl] : null,
       ['NOAA water', site.sourceLinks?.noaaGauge || links.noaa],
     ].filter(Boolean).map(([label, href]) => (
       `<a class="link-button" href="${esc(href)}" target="_blank" rel="noreferrer">${esc(label)}</a>`
@@ -333,6 +371,7 @@
         <div class="fact-row"><span>Current</span><strong>${fmt(site.currentStage)} ft</strong></div>
         <div class="fact-row"><span>Forecast</span><strong>${fmt(site.forecastStage)} ft</strong></div>
         <div class="fact-row"><span>Flood level</span><strong>${site.floodStage ? `${fmt(site.floodStage)} ft` : '--'}</strong></div>
+        <div class="fact-row"><span>USGS impacts</span><strong>${impactCount ? `${floodingImpactCount}/${impactCount} flooding` : '--'}</strong></div>
       </div>
 
       <div class="tab-row">${linksHtml}</div>

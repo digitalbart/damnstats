@@ -709,6 +709,62 @@ h3 {
   position: relative;
   height: 320px;
   min-height: 280px;
+  overflow: hidden;
+}
+
+.chart-frame > [hidden] {
+  display: none !important;
+}
+
+.chart-tabs {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(5, 6, 7, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.chart-tabs button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.chart-tabs button.is-active {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.dots-chart-panel {
+  width: 100%;
+  height: 100%;
+}
+
+.official-hydrograph {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: #f7f7f4;
+}
+
+.official-hydrograph img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .chart-summary-grid,
@@ -763,10 +819,84 @@ h3 {
 .selected-camera-frame {
   width: 100%;
   aspect-ratio: 16 / 9;
-  min-height: 180px;
+  min-height: 160px;
   border: 0;
   border-radius: var(--radius);
   background: #030806;
+}
+
+.media-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  width: min(100%, 230px);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.045);
+  padding: 4px;
+}
+
+.media-tabs input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.media-tabs label {
+  cursor: pointer;
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  padding: 7px 9px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.media-tabs input:checked + label {
+  background: rgba(125, 232, 224, 0.14);
+  color: var(--text);
+}
+
+.media-pane-youtube {
+  display: none;
+}
+
+.copy-block:has(.media-tabs input:nth-of-type(2):checked) .media-pane-official {
+  display: none;
+}
+
+.copy-block:has(.media-tabs input:nth-of-type(2):checked) .media-pane-youtube {
+  display: block;
+}
+
+.usgs-snapshot {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.usgs-snapshot img,
+.usgs-snapshot video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 160px;
+  border-radius: var(--radius);
+  background: #030806;
+  object-fit: cover;
+}
+
+.usgs-snapshot figcaption {
+  display: grid;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.usgs-snapshot figcaption strong {
+  color: var(--text);
 }
 
 .empty-state {
